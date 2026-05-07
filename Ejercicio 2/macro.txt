@@ -1,0 +1,244 @@
+Option Explicit
+
+#If VBA7 Then
+    Private Declare PtrSafe Function FindWindow Lib "user32" Alias "FindWindowW" ( _
+        ByVal lpClassName As LongPtr, ByVal lpWindowName As LongPtr) As LongPtr
+
+    Private Declare PtrSafe Function EnumChildWindows Lib "user32" ( _
+        ByVal hWndParent As LongPtr, ByVal lpEnumFunc As LongPtr, ByVal lParam As LongPtr) As Long
+
+    Private Declare PtrSafe Function GetClassName Lib "user32" Alias "GetClassNameW" ( _
+        ByVal hwnd As LongPtr, ByVal lpClassName As LongPtr, ByVal nMaxCount As Long) As Long
+
+    Private Declare PtrSafe Function GetWindowText Lib "user32" Alias "GetWindowTextW" ( _
+        ByVal hwnd As LongPtr, ByVal lpString As LongPtr, ByVal cch As Long) As Long
+
+    Private Declare PtrSafe Function GetWindowTextLength Lib "user32" Alias "GetWindowTextLengthW" ( _
+        ByVal hwnd As LongPtr) As Long
+
+    Private Declare PtrSafe Function SendMessage Lib "user32" Alias "SendMessageW" ( _
+        ByVal hwnd As LongPtr, ByVal wMsg As Long, ByVal wParam As LongPtr, ByVal lParam As LongPtr) As LongPtr
+
+    Private Declare PtrSafe Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
+#Else
+    Private Declare Function FindWindow Lib "user32" Alias "FindWindowW" ( _
+        ByVal lpClassName As Long, ByVal lpWindowName As Long) As Long
+
+    Private Declare Function EnumChildWindows Lib "user32" ( _
+        ByVal hWndParent As Long, ByVal lpEnumFunc As Long, ByVal lParam As Long) As Long
+
+    Private Declare Function GetClassName Lib "user32" Alias "GetClassNameW" ( _
+        ByVal hwnd As Long, ByVal lpClassName As Long, ByVal nMaxCount As Long) As Long
+
+    Private Declare Function GetWindowText Lib "user32" Alias "GetWindowTextW" ( _
+        ByVal hwnd As Long, ByVal lpString As Long, ByVal cch As Long) As Long
+
+    Private Declare Function GetWindowTextLength Lib "user32" Alias "GetWindowTextLengthW" ( _
+        ByVal hwnd As Long) As Long
+
+    Private Declare Function SendMessage Lib "user32" Alias "SendMessageW" ( _
+        ByVal hwnd As Long, ByVal wMsg As Long, ByVal wParam As Long, ByVal lParam As Long) As Long
+
+    Private Declare Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
+#End If
+
+Private Const WM_SETTEXT As Long = &HC
+Private Const WM_GETTEXT As Long = &HD
+Private Const BM_CLICK As Long = &HF5
+
+#If VBA7 Then
+    Public g_hTxtVendedor As LongPtr
+    Public g_hTxtFecha As LongPtr
+    Public g_hTxtCliente As LongPtr
+    Public g_hTxtCantidad As LongPtr
+    Public g_hBtnRegistrar As LongPtr
+#Else
+    Public g_hTxtVendedor As Long
+    Public g_hTxtFecha As Long
+    Public g_hTxtCliente As Long
+    Public g_hTxtCantidad As Long
+    Public g_hBtnRegistrar As Long
+#End If
+
+Private g_EditCount As Long
+
+Public Sub AutomatizarDemo()
+    Dim exePath As String
+    Dim hWndMain As LongPtr
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim i As Long
+
+    Dim vendedor As String
+    Dim fecha As String
+    Dim cliente As String
+    Dim cantidad As String
+
+    exePath = "C:\Temp\DunderMifflinSales\DunderMifflinSales.exe"
+    ' exePath = "C:\Temp\demo2.bat"
+
+    Set ws = ThisWorkbook.Worksheets("Sheet1")
+
+    Shell """" & exePath & """", vbNormalFocus
+
+    hWndMain = EsperarVentana("Dunder Mifflin - Registro de Ventas", 10000)
+
+    If hWndMain = 0 Then
+        MsgBox "No se encontró la ventana principal del programa.", vbCritical
+        Exit Sub
+    End If
+
+    LimpiarHandles
+    EnumChildWindows hWndMain, AddressOf EnumChildProc, 0
+
+    If g_hTxtVendedor = 0 Or _
+       g_hTxtFecha = 0 Or _
+       g_hTxtCliente = 0 Or _
+       g_hTxtCantidad = 0 Or _
+       g_hBtnRegistrar = 0 Then
+
+        MsgBox "No se localizaron todos los controles requeridos.", vbCritical
+        Exit Sub
+    End If
+
+    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+
+    For i = 2 To lastRow
+        vendedor = Trim$(CStr(ws.Cells(i, "A").Value))
+        fecha = Trim$(CStr(ws.Cells(i, "B").Value))
+        cliente = Trim$(CStr(ws.Cells(i, "C").Value))
+        cantidad = Trim$(CStr(ws.Cells(i, "D").Value))
+
+        If vendedor <> "" And fecha <> "" And cliente <> "" And cantidad <> "" Then
+
+            SetWindowTextByHandle g_hTxtVendedor, vendedor
+            SetWindowTextByHandle g_hTxtFecha, fecha
+            SetWindowTextByHandle g_hTxtCliente, cliente
+            SetWindowTextByHandle g_hTxtCantidad, cantidad
+
+            SendMessage g_hBtnRegistrar, BM_CLICK, 0, 0
+
+            DoEvents
+            Sleep 500
+
+            ws.Cells(i, "E").Value = "Registro enviado"
+        Else
+            ws.Cells(i, "E").Value = "Fila omitida: faltan datos"
+        End If
+    Next i
+
+    MsgBox "Registro automatizado terminado.", vbInformation
+End Sub
+
+Private Sub LimpiarHandles()
+    g_hTxtVendedor = 0
+    g_hTxtFecha = 0
+    g_hTxtCliente = 0
+    g_hTxtCantidad = 0
+    g_hBtnRegistrar = 0
+    g_EditCount = 0
+End Sub
+
+#If VBA7 Then
+Public Function EnumChildProc(ByVal hwnd As LongPtr, ByVal lParam As LongPtr) As Long
+#Else
+Public Function EnumChildProc(ByVal hwnd As Long, ByVal lParam As Long) As Long
+#End If
+
+    Dim cls As String
+    Dim txt As String
+
+    cls = GetClassNameString(hwnd)
+    txt = GetTextByHandle(hwnd)
+
+    If InStr(1, cls, "Edit", vbTextCompare) > 0 Or _
+       InStr(1, cls, "WindowsForms10.EDIT", vbTextCompare) > 0 Then
+
+        g_EditCount = g_EditCount + 1
+
+        Select Case g_EditCount
+            Case 1
+                g_hTxtVendedor = hwnd
+            Case 2
+                g_hTxtFecha = hwnd
+            Case 3
+                g_hTxtCliente = hwnd
+            Case 4
+                g_hTxtCantidad = hwnd
+        End Select
+    End If
+
+    If InStr(1, cls, "Button", vbTextCompare) > 0 Or _
+       InStr(1, cls, "WindowsForms10.BUTTON", vbTextCompare) > 0 Then
+
+        If LCase$(Trim$(txt)) = "registrar venta" Then
+            g_hBtnRegistrar = hwnd
+        End If
+    End If
+
+    EnumChildProc = 1
+End Function
+
+Private Function EsperarVentana(ByVal titulo As String, ByVal timeoutMs As Long) As LongPtr
+    Dim t0 As Single
+    Dim hwnd As LongPtr
+
+    t0 = Timer
+
+    Do
+        hwnd = FindWindow(0, StrPtr(titulo))
+
+        If hwnd <> 0 Then
+            EsperarVentana = hwnd
+            Exit Function
+        End If
+
+        DoEvents
+        Sleep 100
+
+        If (Timer - t0) * 1000 >= timeoutMs Then Exit Do
+    Loop
+
+    EsperarVentana = 0
+End Function
+
+Private Function GetClassNameString(ByVal hwnd As LongPtr) As String
+    Dim buffer As String
+    Dim ret As Long
+
+    buffer = String$(256, vbNullChar)
+    ret = GetClassName(hwnd, StrPtr(buffer), 256)
+
+    If ret > 0 Then
+        GetClassNameString = Left$(buffer, ret)
+    Else
+        GetClassNameString = ""
+    End If
+End Function
+
+Private Function GetTextByHandle(ByVal hwnd As LongPtr) As String
+    Dim lngLen As Long
+    Dim buffer As String
+
+    lngLen = GetWindowTextLength(hwnd)
+    buffer = String$(lngLen + 10, vbNullChar)
+
+    If lngLen > 0 Then
+        GetWindowText hwnd, StrPtr(buffer), lngLen + 2
+        GetTextByHandle = Left$(buffer, InStr(buffer, vbNullChar) - 1)
+    Else
+        buffer = String$(512, vbNullChar)
+        SendMessage hwnd, WM_GETTEXT, 512, StrPtr(buffer)
+
+        If InStr(buffer, vbNullChar) > 0 Then
+            GetTextByHandle = Left$(buffer, InStr(buffer, vbNullChar) - 1)
+        Else
+            GetTextByHandle = buffer
+        End If
+    End If
+End Function
+
+Private Sub SetWindowTextByHandle(ByVal hwnd As LongPtr, ByVal newText As String)
+    SendMessage hwnd, WM_SETTEXT, 0, StrPtr(newText)
+End Sub
+

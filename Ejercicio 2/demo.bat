@@ -1,0 +1,1 @@
+powershell -NoProfile -ExecutionPolicy Bypass "C:\\Temp\\demo.ps1"
