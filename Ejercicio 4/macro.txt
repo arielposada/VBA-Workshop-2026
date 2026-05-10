@@ -1,0 +1,56 @@
+Option Explicit
+
+Sub ObtenerTipoDeCambio()
+    Dim http As Object
+    Dim url As String
+    Dim respuesta As String
+    Dim tipoCambio As String
+    
+    url = "https://mx.dolarapi.com/v1/cotizaciones/usd"
+    
+    Set http = CreateObject("MSXML2.XMLHTTP")
+    
+    http.Open "GET", url, False
+    http.setRequestHeader "Accept", "application/json"
+    http.Send
+    
+    If http.Status <> 200 Then
+        MsgBox "Error HTTP: " & http.Status, vbCritical
+        Exit Sub
+    End If
+    
+    respuesta = http.responseText
+    
+    ' Toma el valor FIX del JSON
+    tipoCambio = ExtraerValorJSON(respuesta, """fix"":", ",")
+    
+    If tipoCambio = "" Then
+        MsgBox "No se pudo obtener el tipo de cambio.", vbExclamation
+        Exit Sub
+    End If
+    
+    ThisWorkbook.Worksheets("Sheet1").Range("B2").Value = CDbl(tipoCambio)
+    
+    MsgBox "Tipo de cambio obtenido: " & tipoCambio, vbInformation
+End Sub
+
+Function ExtraerValorJSON(ByVal texto As String, ByVal inicio As String, ByVal fin As String) As String
+    Dim posInicio As Long
+    Dim posFin As Long
+    
+    posInicio = InStr(1, texto, inicio, vbTextCompare)
+    
+    If posInicio = 0 Then
+        ExtraerValorJSON = ""
+        Exit Function
+    End If
+    
+    posInicio = posInicio + Len(inicio)
+    posFin = InStr(posInicio, texto, fin, vbTextCompare)
+    
+    If posFin = 0 Then
+        ExtraerValorJSON = ""
+    Else
+        ExtraerValorJSON = Trim(Mid(texto, posInicio, posFin - posInicio))
+    End If
+End Function
