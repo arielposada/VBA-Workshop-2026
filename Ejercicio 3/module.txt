@@ -1,0 +1,183 @@
+Option Explicit
+
+'=========================================================
+' ISR Mensual 2026
+'
+' Tabla ISR usada:
+'   Hoja:      ISR Mensual 2026
+'   Rango:     A5:D15
+'
+' Uso desde celda:
+'   =ISR_LimiteInferiorAplicado(G2)
+'   =ISR_LimiteSuperiorAplicado(G2)
+'   =ISR_CuotaFijaAplicada(G2)
+'   =ISR_PorcentajeAplicado(G2)
+'   =ISR_Excedente(G2)
+'   =ISR_ImpuestoMarginal(G2)
+'   =ISR_MensualEstimado(G2)
+'   =ISR_NetoDespuesDeISR(G2)
+'=========================================================
+
+Private Const NOMBRE_HOJA_ISR As String = "ISR Mensual 2026"
+Private Const RANGO_TABLA_ISR As String = "A5:D15"
+
+Private Function HojaISR() As Worksheet
+    Set HojaISR = ThisWorkbook.Worksheets(NOMBRE_HOJA_ISR)
+End Function
+
+Private Function TablaISRActual() As Range
+    Set TablaISRActual = HojaISR().Range(RANGO_TABLA_ISR)
+End Function
+
+Private Function EsEnAdelante(ByVal valor As Variant) As Boolean
+    EsEnAdelante = (LCase(Trim(CStr(valor))) = "en adelante")
+End Function
+
+Private Function BuscarFilaISR(ByVal ingresoGravable As Double, ByVal tablaISR As Range) As Long
+    Dim i As Long
+    Dim limiteInferior As Double
+    Dim limiteSuperior As Variant
+    
+    For i = 1 To tablaISR.Rows.Count
+        limiteInferior = CDbl(tablaISR.Cells(i, 1).Value)
+        limiteSuperior = tablaISR.Cells(i, 2).Value
+        
+        If EsEnAdelante(limiteSuperior) Then
+            If ingresoGravable >= limiteInferior Then
+                BuscarFilaISR = i
+                Exit Function
+            End If
+        Else
+            If ingresoGravable >= limiteInferior And ingresoGravable <= CDbl(limiteSuperior) Then
+                BuscarFilaISR = i
+                Exit Function
+            End If
+        End If
+    Next i
+    
+    BuscarFilaISR = 0
+End Function
+
+Public Function ISR_LimiteInferiorAplicado(ByVal ingresoGravable As Double) As Variant
+    Application.Volatile
+    
+    Dim fila As Long
+    Dim tablaISR As Range
+    
+    Set tablaISR = TablaISRActual()
+    fila = BuscarFilaISR(ingresoGravable, tablaISR)
+    
+    If fila = 0 Then
+        ISR_LimiteInferiorAplicado = CVErr(xlErrNA)
+    Else
+        ISR_LimiteInferiorAplicado = tablaISR.Cells(fila, 1).Value
+    End If
+End Function
+
+Public Function ISR_LimiteSuperiorAplicado(ByVal ingresoGravable As Double) As Variant
+    Application.Volatile
+    
+    Dim fila As Long
+    Dim tablaISR As Range
+    
+    Set tablaISR = TablaISRActual()
+    fila = BuscarFilaISR(ingresoGravable, tablaISR)
+    
+    If fila = 0 Then
+        ISR_LimiteSuperiorAplicado = CVErr(xlErrNA)
+    Else
+        ISR_LimiteSuperiorAplicado = tablaISR.Cells(fila, 2).Value
+    End If
+End Function
+
+Public Function ISR_CuotaFijaAplicada(ByVal ingresoGravable As Double) As Variant
+    Application.Volatile
+    
+    Dim fila As Long
+    Dim tablaISR As Range
+    
+    Set tablaISR = TablaISRActual()
+    fila = BuscarFilaISR(ingresoGravable, tablaISR)
+    
+    If fila = 0 Then
+        ISR_CuotaFijaAplicada = CVErr(xlErrNA)
+    Else
+        ISR_CuotaFijaAplicada = tablaISR.Cells(fila, 3).Value
+    End If
+End Function
+
+Public Function ISR_PorcentajeAplicado(ByVal ingresoGravable As Double) As Variant
+    Application.Volatile
+    
+    Dim fila As Long
+    Dim tablaISR As Range
+    
+    Set tablaISR = TablaISRActual()
+    fila = BuscarFilaISR(ingresoGravable, tablaISR)
+    
+    If fila = 0 Then
+        ISR_PorcentajeAplicado = CVErr(xlErrNA)
+    Else
+        ISR_PorcentajeAplicado = tablaISR.Cells(fila, 4).Value
+    End If
+End Function
+
+Public Function ISR_Excedente(ByVal ingresoGravable As Double) As Variant
+    Application.Volatile
+    
+    Dim limiteInferior As Variant
+    
+    limiteInferior = ISR_LimiteInferiorAplicado(ingresoGravable)
+    
+    If IsError(limiteInferior) Then
+        ISR_Excedente = CVErr(xlErrNA)
+    Else
+        ISR_Excedente = ingresoGravable - CDbl(limiteInferior)
+    End If
+End Function
+
+Public Function ISR_ImpuestoMarginal(ByVal ingresoGravable As Double) As Variant
+    Application.Volatile
+    
+    Dim excedente As Variant
+    Dim porcentaje As Variant
+    
+    excedente = ISR_Excedente(ingresoGravable)
+    porcentaje = ISR_PorcentajeAplicado(ingresoGravable)
+    
+    If IsError(excedente) Or IsError(porcentaje) Then
+        ISR_ImpuestoMarginal = CVErr(xlErrNA)
+    Else
+        ISR_ImpuestoMarginal = CDbl(excedente) * CDbl(porcentaje)
+    End If
+End Function
+
+Public Function ISR_MensualEstimado(ByVal ingresoGravable As Double) As Variant
+    Application.Volatile
+    
+    Dim cuotaFija As Variant
+    Dim impuestoMarginal As Variant
+    
+    cuotaFija = ISR_CuotaFijaAplicada(ingresoGravable)
+    impuestoMarginal = ISR_ImpuestoMarginal(ingresoGravable)
+    
+    If IsError(cuotaFija) Or IsError(impuestoMarginal) Then
+        ISR_MensualEstimado = CVErr(xlErrNA)
+    Else
+        ISR_MensualEstimado = CDbl(cuotaFija) + CDbl(impuestoMarginal)
+    End If
+End Function
+
+Public Function ISR_NetoDespuesDeISR(ByVal ingresoGravable As Double) As Variant
+    Application.Volatile
+    
+    Dim isr As Variant
+    
+    isr = ISR_MensualEstimado(ingresoGravable)
+    
+    If IsError(isr) Then
+        ISR_NetoDespuesDeISR = CVErr(xlErrNA)
+    Else
+        ISR_NetoDespuesDeISR = ingresoGravable - CDbl(isr)
+    End If
+End Function
