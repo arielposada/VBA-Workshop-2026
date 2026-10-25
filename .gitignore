@@ -12,11 +12,24 @@
 # Excel (xls, xlsb, xlsm, xlt, xltm, xla, xlam)
 #*.[xX][lL][sS]
 #*.[xX][lL][sS][bB]
-#*.[xX][lL][sS][mM]
+*.[xX][lL][sS][mM]
+*.[xX][lL][sS][xX]
 #*.[xX][lL][tT]
 #*.[xX][lL][tT][mM]
 #*.[xX][lL][aA]
 #*.[xX][lL][aA][mM]
+
+# Python source, bytecode, caches, and virtual environments
+*.py
+*.py[cod]
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+ENV/
 
 # Word (doc, docm, dot, dotm)
 #*.[dD][oO][cC]
